@@ -22,7 +22,7 @@ fnally -> run the application on your IDE
 design decision, use uuid for security (non guessing id). implement soft delete for data recovery if any accindetal deletions and keep history data. using base model so no need to duplicate for column that have same type data and same rule.
 
 assumptions : 
-single warehouse - system assumes one physical warehouse location, no backorders - reject order if stock insufficient, manual stock updates - no auto-replenishment.
+single warehouse - system assumes one physical warehouse location, no backorders - reject order if stock insufficient, manual stock updates.
 
 if want to check API endpot, run the application first then open this link on website : 
 http://localhost:8080/swagger-ui.html
