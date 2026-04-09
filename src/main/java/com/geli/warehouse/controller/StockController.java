@@ -19,12 +19,12 @@ public class StockController {
 
     private final StockService stockService;
 
-    @GetMapping("/{itemId}/stock")
+    @GetMapping("/item/{itemId}")
     public ResponseEntity<List<StockResponse>> getByItem(@PathVariable UUID itemId) {
         return ResponseEntity.ok(stockService.getByItem(itemId));
     }
 
-    @GetMapping("/{variantId}/stock")
+    @GetMapping("/variant/{variantId}")
     public ResponseEntity<List<StockResponse>> getByVariant(@PathVariable UUID variantId) {
         return ResponseEntity.ok(stockService.getByVariant(variantId));
     }
