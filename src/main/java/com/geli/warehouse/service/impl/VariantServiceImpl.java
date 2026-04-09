@@ -1,11 +1,14 @@
 package com.geli.warehouse.service.impl;
 
+import com.geli.warehouse.constant.StockMovementEnum;
 import com.geli.warehouse.dto.request.StockReduceRequest;
 import com.geli.warehouse.dto.request.VariantRequest;
 import com.geli.warehouse.dto.response.VariantResponse;
 import com.geli.warehouse.model.Items;
+import com.geli.warehouse.model.Stock;
 import com.geli.warehouse.model.Variant;
 import com.geli.warehouse.repository.ItemsRepository;
+import com.geli.warehouse.repository.StockRepository;
 import com.geli.warehouse.repository.VariantRepository;
 import com.geli.warehouse.service.VariantService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ import java.util.stream.Collectors;
 public class VariantServiceImpl implements VariantService {
     private final VariantRepository variantRepository;
     private final ItemsRepository itemsRepository;
+    private final StockRepository stockRepository;
 
     @Override
     public List<VariantResponse> getAll() {
@@ -74,6 +78,9 @@ public class VariantServiceImpl implements VariantService {
 
         Variant saved = variantRepository.save(variant);
         log.info("Variant created: {} - {} for item: {}", saved.getVariantName(), saved.getVariantValue(), item.getProductCode());
+        if(saved.getStock() > 0){
+            stockRecord(item, saved, StockMovementEnum.INITIAL_STOCK, 0, saved.getStock(), "Initial stock on variant creation");
+        }
 
         return setTheResponse(saved);
     }
@@ -99,10 +106,12 @@ public class VariantServiceImpl implements VariantService {
         if (request.getRackNumber() != null) variant.setRackNumber(request.getRackNumber());
 
         if (request.getStockChange() != null && request.getStockChange() > 0) {
+            int stockBefore = variant.getStock();
             variant.addStock(request.getStockChange());
             log.info("Stock added: {}-{} (+{}), New stock: {}",
                     variant.getVariantName(), variant.getVariantValue(),
                     request.getStockChange(), variant.getStock());
+            stockRecord(variant.getItem(), variant, StockMovementEnum.STOCK_IN, stockBefore, request.getStockChange(), "Stock in via update");
         }
 
         Variant updated = variantRepository.save(variant);
@@ -129,12 +138,15 @@ public class VariantServiceImpl implements VariantService {
         Variant variant = variantRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Variant not found with ID: " + id));
 
+        int stockBefore = variant.getStock();
         variant.reduceStock(request.getQuantity());
         log.info("Stock reduced: {}-{} (-{}), New stock: {}",
                 variant.getVariantName(), variant.getVariantValue(),
                 request.getQuantity(), variant.getStock());
 
         Variant updated = variantRepository.save(variant);
+        stockRecord(null, updated, StockMovementEnum.STOCK_OUT, stockBefore, request.getQuantity(), "Stock out (reducing stock)");
+
         return setTheResponse(updated);
     }
 
@@ -153,5 +165,19 @@ public class VariantServiceImpl implements VariantService {
                 .createdAt(variant.getCreatedAt())
                 .updatedAt(variant.getUpdatedAt())
                 .build();
+    }
+
+    private void stockRecord(Items item, Variant variant,
+                             StockMovementEnum type, int stockBefore, int quantityChange, String notes) {
+        Stock stock = Stock.builder()
+                .item(item)
+                .variant(variant)
+                .movementType(type)
+                .quantityBefore(stockBefore)
+                .quantityChange(quantityChange)
+                .quantityAfter(stockBefore + (type == StockMovementEnum.STOCK_OUT ? -quantityChange : quantityChange))
+                .notes(notes)
+                .build();
+        stockRepository.save(stock);
     }
 }

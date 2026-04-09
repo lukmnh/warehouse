@@ -72,6 +72,12 @@ public class Items extends BaseModel {
         this.stock -= quantity;
     }
 
+    public void addStock(int quantity) {
+        if (quantity < 0) {
+            throw new IllegalArgumentException("Quantity cannot be negative");
+        }
+        this.stock += quantity;
+    }
 
     public String getCategoryName() {
         return category != null ? category.getName() : null;

@@ -12,7 +12,7 @@ import lombok.experimental.SuperBuilder;
 import java.util.UUID;
 
 @Entity
-@Table(name = "stock_movement", schema = "geli")
+@Table(name = "stock_movements", schema = "geli")
 @Getter
 @Setter
 @SuperBuilder

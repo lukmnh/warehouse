@@ -1,14 +1,14 @@
 package com.geli.warehouse.service.impl;
 
+import com.geli.warehouse.constant.StockMovementEnum;
 import com.geli.warehouse.dto.request.ItemsRequest;
 import com.geli.warehouse.dto.request.StockReduceRequest;
 import com.geli.warehouse.dto.response.ItemsResponse;
-import com.geli.warehouse.model.Brands;
-import com.geli.warehouse.model.Categories;
-import com.geli.warehouse.model.Items;
+import com.geli.warehouse.model.*;
 import com.geli.warehouse.repository.BrandsRepository;
 import com.geli.warehouse.repository.CategoriesRepository;
 import com.geli.warehouse.repository.ItemsRepository;
+import com.geli.warehouse.repository.StockRepository;
 import com.geli.warehouse.service.ItemsService;
 import com.geli.warehouse.util.ProductGenerator;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +29,7 @@ public class ItemsServiceImpl implements ItemsService {
     private final CategoriesRepository categoriesRepository;
     private final BrandsRepository brandsRepository;
     private final ProductGenerator codeGenerator;
+    private final StockRepository stockRepository;
 
     @Override
     public List<ItemsResponse> getAll() {
@@ -90,6 +91,9 @@ public class ItemsServiceImpl implements ItemsService {
         Items saved = itemsRepository.save(items);
         log.info("Item created: {} - {}", saved.getProductCode(), saved.getName());
 
+        if(saved.getStock() > 0) {
+            stockRecord(saved, null, StockMovementEnum.INITIAL_STOCK, 0, saved.getStock(), "Initial stock when item created");
+        }
         return setTheResponse(saved);
     }
 
@@ -130,11 +134,12 @@ public class ItemsServiceImpl implements ItemsService {
         if (request.getWarehouseZone() != null) item.setWarehouseZone(request.getWarehouseZone());
         if (request.getRackNumber() != null) item.setRackNumber(request.getRackNumber());
 
-        if (request.getStockChange() != null && request.getStockChange() != 0) {
-            int newStock = item.getStock() + request.getStockChange();
-            item.setStock(newStock);
-            log.info("Stock updated: {} ({}), New stock: {}",
-                    item.getProductCode(), request.getStockChange(), newStock);
+        if (request.getStockChange() != null && request.getStockChange() > 0) {
+            int stockBefore = item.getStock();
+            item.addStock(request.getStockChange());
+            log.info("Stock added: {} (+{}), New stock: {}",
+                    item.getProductCode(), request.getStockChange(), item.getStock());
+            stockRecord(item, null, StockMovementEnum.STOCK_IN, stockBefore, request.getStockChange(), "Stock in via update");
         }
 
         if (request.getCategoryId() != null) {
@@ -168,11 +173,14 @@ public class ItemsServiceImpl implements ItemsService {
         Items item = itemsRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Items not found with ID: " + id));
 
+        int stockBefore = item.getStock();
         item.reduceStock(request.getQuantity());
         log.info("Stock reduced: {} (-{}), New stock: {}",
                 item.getProductCode(), request.getQuantity(), item.getStock());
 
         Items updated = itemsRepository.save(item);
+        stockRecord(updated, null, StockMovementEnum.STOCK_OUT, stockBefore, request.getQuantity(), "Stock out via (reducing stock)");
+
         return setTheResponse(updated);
     }
 
@@ -206,5 +214,19 @@ public class ItemsServiceImpl implements ItemsService {
             }
         }
         return codeGenerator.generateDefault();
+    }
+
+    private void stockRecord(Items item, Variant variant,
+                                StockMovementEnum type, int stockBefore, int quantityChange, String notes) {
+        Stock stock = Stock.builder()
+                .item(item)
+                .variant(variant)
+                .movementType(type)
+                .quantityBefore(stockBefore)
+                .quantityChange(quantityChange)
+                .quantityAfter(stockBefore + (type == StockMovementEnum.STOCK_OUT ? -quantityChange : quantityChange))
+                .notes(notes)
+                .build();
+        stockRepository.save(stock);
     }
 }

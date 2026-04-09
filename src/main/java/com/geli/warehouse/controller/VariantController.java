@@ -31,12 +31,12 @@ public class VariantController {
     }
 
 
-    @PostMapping
+    @PostMapping("/{itemId}")
     public ResponseEntity<VariantResponse> create(
             @PathVariable UUID itemId,
             @Valid @RequestBody VariantRequest request) {
         VariantResponse created = variantService.create(itemId, request);
-        return ResponseEntity.created(URI.create("/v1/api/variants/" + created.getId())).body(created);
+        return ResponseEntity.created(URI.create("/v1/api/variant/" + created.getId())).body(created);
     }
 
     @PutMapping("/{id}")
